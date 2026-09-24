@@ -25,17 +25,19 @@
             <input type="password" id="senha" placeholder="Senha:">
             <button type="submit">Enviar</button>
         </form>
+        <p id="mensagem-login"></p>
     </section>
 
     <section id="tela-produtos" style="display: none;">
         <h2>Tela Produtos</h2>
+
 
     </section>
 
     <section id="tela-admin" style="display: none;">
         <h2>Área Admin</h2>
         <form id="form-produto">
-            <input type="text" id="nome-produto" placeholder="Nome do Produto">
+            <input type="text" id="nome-produto" placeholder="Nome do produto">
             <input type="number" id="preco-produto" placeholder="Preço" step="0.01">
             <button type="submit">Cadastrar</button>
         </form>
@@ -71,6 +73,8 @@
             const email = document.getElementById('email').value;
             const senha = document.getElementById('senha').value;
 
+            const token = localStorage.getItem('token')
+
             fetch('http://localhost:3000/login', {
                 method: 'POST',
                 headers: {
@@ -83,14 +87,18 @@
             })
                 .then(resposta => resposta.json())
                 .then(dados => {
-                    console.log(dados);
+                    if (dados.token) {
+                        localStorage.setItem('token', dados.token)
+                        document.getElementById('mensagem-login').textContent = 'Login feito com sucesso!'
+                    } else {
+                        document.getElementById('mensagem-login').textContent = 'E-mail ou senha inválidos.'
+                    }
                 })
                 .catch(erro => {
                     console.error('Erro ao fazer login:', erro);
                 });
         });
-
-        const formProduto = document.getElementById("form-produto")
+        const formProduto = document.getElementById('form-produto')
         formProduto.addEventListener('submit', function (evento) {
             evento.preventDefault()
             const nome = document.getElementById('nome-produto').value
@@ -101,14 +109,15 @@
                 return
             }
             if (Number(preco) <= 0) {
-                document.getElementById('mensagem-produto').textContent = 'O preço precisa ser maior que zero'
+                document.getElementById('mensagem-produto').textContent = '0 O preço precisa ser maior que zero'
                 return
             }
-
+            const token = localStorage.getItem('token')
             fetch('http://localhost:3000/produtos', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
                 },
                 body: JSON.stringify({
                     nome: nome,
@@ -117,34 +126,78 @@
             })
                 .then(resposta => resposta.json())
                 .then(dados => {
-                    document.getElementById('mensagem-produto').textContent = 'Produto cadastrado'
+                    if (dados.erro) {
+                        document.getElementById('mensagem-produto').textContent = dados.erro
+                    } else {
+                        document.getElementById('mensagem-produto').textContent = 'Produto cadastrado!'
+                        buscarProdutos()
+                    }
                 })
-        })
+        });
 
-        let produtos = [
-            { nome: 'Camiseta', preco: 49.90 },
-            { nome: 'Caneca', preco: 24.90 },
-            { nome: 'Boné', preco: 39.90 }
-        ];
+        let produtos = []
+
+        function buscarProdutos() {
+            fetch('http://localhost:3000/produtos')
+                .then(resposta => resposta.json())
+                .then(dados => {
+                    produtos = dados
+                    renderProdutos()
+                })
+        }
+        buscarProdutos()
 
         function cardProdutos(produto) {
             return `
-            <div class="card-produto">
-                <h3>${produto.nome}</h3>    
-                <p>R$ ${produto.preco.toFixed(2)}</p>
-            </div>
-            `;
+    <div class ="card-produto" data-nome="${produto.nome}">
+        <h3>${produto.nome}</h3>
+        <p>R$ ${produto.preco.toFixed(2)}</p>
+        <button class="btn-excluir" data-nome="${produto.nome}">Excluir</button>
+    </div>
+    `;
         }
+
+        const container = document.getElementById('tela-produtos')
+
+        container.addEventListener('click', function (evento) {
+            const botaoExcluir = evento.target.closest('.btn-excluir')
+
+            if(botaoExcluir) {
+                const nome = botaoExcluir.dataset.nome
+                const token = localStorage.getItem('token')
+
+                fetch('http://localhost:3000/produtos/' + nome, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                })
+                .then(resposta => {
+                    return resposta.json();
+                })
+                .then(dados => {
+                    buscarProdutos()
+                })
+                .catch(erro => console.error('Erro:', erro));
+            }
+
+            const card = evento.target.closest('.card-produto')
+            if (!card) return
+
+            document.querySelectorAll('.card-produto').forEach(c => c.classList.remove('selecionado'))
+            card.classList.add('selecionado')
+        });
 
         function renderProdutos() {
             const container = document.getElementById('tela-produtos');
             const cards = produtos.map(cardProdutos).join('');
-
-            container.innerHTML = '<h2>Tela Produtos</h2>' + cards;
+            container.innerHTML = `<h2>Tela de Produtos</h2>` + cards;
         }
 
-        renderProdutos();
-
+        function adicionarProduto(nome, preco) {
+            produtos.push({ nome: nome, preco: preco })
+            renderProdutos()
+        }
     </script>
 
 </body>
